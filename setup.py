@@ -4,11 +4,9 @@
 
 from setuptools import setup, find_packages
 
-with open('README.rst') as readme_file:
+with open('README.md', encoding='utf-8') as readme_file:
     readme = readme_file.read()
 
-with open('HISTORY.rst') as history_file:
-    history = history_file.read()
 
 requirements = ["scrapy"]
 
@@ -31,7 +29,8 @@ setup(
     description="Scrapy middleware to use Ujeebu scrape API",
     install_requires=requirements,
     license="MIT license",
-    long_description=readme + '\n\n' + history,
+    long_description=readme,
+    long_description_content_type='text/markdown',
     include_package_data=True,
     keywords='ujeebu_scrapy',
     name='ujeebu_scrapy',
@@ -39,6 +38,6 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/ujeebu/ujeebu_scrapy',
-    version='0.1.0',
+    version='0.2.0',
     zip_safe=False,
 )
