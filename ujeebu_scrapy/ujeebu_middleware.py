@@ -7,6 +7,7 @@ It automatically routes UjeebuRequest classes through the appropriate Ujeebu API
 
 import json
 import logging
+import urllib.parse
 
 from scrapy import Request
 from scrapy.exceptions import NotConfigured
@@ -73,23 +74,23 @@ class UjeebuMiddleware:
         ujeebu_meta = request.meta.get('ujeebu', {})
         endpoint = ujeebu_meta.get('endpoint', '/scrape')
         use_post = ujeebu_meta.get('use_post', False)
-
-        if use_post:
-            return self._build_post_request(request, endpoint)
-        else:
-            return self._build_get_request(request, endpoint)
-
-    def _build_get_request(self, request, endpoint):
-        """Build a GET request to Ujeebu API."""
-        ujeebu_params = request.query_params.copy()
+        api_params = ujeebu_meta.get('api_params', {}).copy()
 
         # Apply default settings
-        if self.default_proxy_type and 'proxy_type' not in ujeebu_params:
-            ujeebu_params['proxy_type'] = self.default_proxy_type
-        if self.default_timeout and 'timeout' not in ujeebu_params:
-            ujeebu_params['timeout'] = self.default_timeout
+        if self.default_proxy_type and 'proxy_type' not in api_params:
+            api_params['proxy_type'] = self.default_proxy_type
+        if self.default_timeout and 'timeout' not in api_params:
+            api_params['timeout'] = self.default_timeout
 
-        ujeebu_url = self._build_ujeebu_url(endpoint, ujeebu_params)
+        # Build request based on method (decision already made by request class)
+        if use_post:
+            return self._build_post_request(request, endpoint, api_params)
+        else:
+            return self._build_get_request(request, endpoint, api_params)
+
+    def _build_get_request(self, request, endpoint, api_params):
+        """Build a GET request to Ujeebu API."""
+        ujeebu_url = self._build_ujeebu_url(endpoint, api_params)
 
         # Prepare headers with API key
         headers = dict(request.headers) if request.headers else {}
@@ -105,31 +106,29 @@ class UjeebuMiddleware:
             meta=request.meta
         )
 
-    def _build_post_request(self, request, endpoint):
+    def _build_post_request(self, request, endpoint, api_params):
         """Build a POST request to Ujeebu API."""
-        post_data = request.post_data.copy()
-
-        # Apply default settings
-        if self.default_proxy_type and 'proxy_type' not in post_data:
-            post_data['proxy_type'] = self.default_proxy_type
-        if self.default_timeout and 'timeout' not in post_data:
-            post_data['timeout'] = self.default_timeout
-
         ujeebu_url = f'{self.base_url}{endpoint}'
 
         # Prepare headers with API key
         headers = dict(request.headers) if request.headers else {}
         headers['apiKey'] = self.api_key
 
-        # Handle different content types
-        if endpoint == '/extract' and 'raw_html' in post_data:
-            # Extract API with raw_html uses form data
+        # Handle different content types based on endpoint and params
+        if endpoint == '/extract' and 'raw_html' in api_params:
+            # Extract API with raw_html uses form-urlencoded data
             headers['Content-Type'] = 'application/x-www-form-urlencoded'
-            body = '&'.join(f'{k}={v}' for k, v in post_data.items())
+            encoded_params = {}
+            for k, v in api_params.items():
+                if isinstance(v, (dict, list)):
+                    encoded_params[k] = urllib.parse.quote(json.dumps(v))
+                elif v is not None:
+                    encoded_params[k] = urllib.parse.quote(str(v))
+            body = '&'.join(f'{k}={v}' for k, v in encoded_params.items())
         else:
-            # Scrape API with extract_rules uses JSON
+            # Default: JSON body (used for extract_rules, etc.)
             headers['Content-Type'] = 'application/json'
-            body = json.dumps(post_data)
+            body = json.dumps(api_params)
 
         log.debug(f'[UjeebuAPI] POST request to {endpoint}')
 
@@ -149,7 +148,7 @@ class UjeebuMiddleware:
             return response
 
         ujeebu_meta = request.meta['ujeebu']
-        original_url = ujeebu_meta.get('url', request.url)
+        original_url = ujeebu_meta.get('original_url', request.url)
 
         # Log response details
         log.debug(f'[UjeebuAPI] Response received for {original_url} (status: {response.status})')

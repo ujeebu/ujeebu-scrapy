@@ -27,7 +27,7 @@ class TestUjeebuScrapeRequest:
         )
         assert request.url == 'https://example.com'
         assert 'ujeebu' in request.meta
-        assert request.meta['ujeebu']['url'] == 'https://example.com'
+        assert request.meta['ujeebu']['original_url'] == 'https://example.com'
         assert request.meta['ujeebu']['endpoint'] == '/scrape'
         assert request.meta['ujeebu']['request_type'] == 'scrape'
 
@@ -42,10 +42,11 @@ class TestUjeebuScrapeRequest:
             },
             callback=lambda x: x
         )
-        assert 'url' in request.query_params
-        assert request.query_params.get('js') == True
-        assert request.query_params.get('wait_for') == 2000
-        assert request.query_params.get('proxy_type') == 'premium'
+        api_params = request.meta['ujeebu']['api_params']
+        assert 'url' in api_params
+        assert api_params.get('js') == True
+        assert api_params.get('wait_for') == 2000
+        assert api_params.get('proxy_type') == 'premium'
 
     def test_request_with_named_params(self):
         """Test scrape request with named parameters."""
@@ -57,10 +58,11 @@ class TestUjeebuScrapeRequest:
             scroll_down=True,
             callback=lambda x: x
         )
-        # Named params should be in query_params
-        assert request.query_params.get('wait_for') == 3000
-        assert request.query_params.get('proxy_type') == 'residential'
-        assert request.query_params.get('scroll_down') == True
+        # Named params should be in api_params
+        api_params = request.meta['ujeebu']['api_params']
+        assert api_params.get('wait_for') == 3000
+        assert api_params.get('proxy_type') == 'residential'
+        assert api_params.get('scroll_down') == True
 
     def test_request_with_extract_rules(self):
         """Test that extract_rules triggers POST mode."""
@@ -73,8 +75,9 @@ class TestUjeebuScrapeRequest:
             callback=lambda x: x
         )
         assert request.meta['ujeebu']['use_post'] == True
-        assert request.post_data is not None
-        assert 'extract_rules' in request.post_data
+        api_params = request.meta['ujeebu']['api_params']
+        assert 'extract_rules' in api_params
+        assert api_params['extract_rules'] == extract_rules
 
     def test_request_with_headers(self):
         """Test that custom headers are prefixed with Ujb-."""
@@ -93,8 +96,9 @@ class TestUjeebuScrapeRequest:
             params={'cookies': {'session': 'abc123', 'user': 'test'}},
             callback=lambda x: x
         )
-        # Cookies should be serialized
-        assert 'cookies' in request.query_params
+        # Cookies should be serialized in api_params
+        api_params = request.meta['ujeebu']['api_params']
+        assert 'cookies' in api_params
 
     def test_ujeebu_request_alias(self):
         """Test that UjeebuRequest is an alias for UjeebuScrapeRequest."""
@@ -127,9 +131,10 @@ class TestUjeebuExtractRequest:
             feeds=True,
             callback=lambda x: x
         )
-        # These should be in query_params
-        assert request.query_params.get('media') == True
-        assert request.query_params.get('feeds') == True
+        # These should be in api_params
+        api_params = request.meta['ujeebu']['api_params']
+        assert api_params.get('media') == True
+        assert api_params.get('feeds') == True
 
     def test_extract_with_raw_html(self):
         """Test that raw_html triggers POST mode."""
@@ -139,8 +144,8 @@ class TestUjeebuExtractRequest:
             callback=lambda x: x
         )
         assert request.meta['ujeebu']['use_post'] == True
-        assert request.post_data is not None
-        assert 'raw_html' in request.post_data
+        api_params = request.meta['ujeebu']['api_params']
+        assert 'raw_html' in api_params
 
     def test_extract_quick_mode(self):
         """Test quick mode parameter."""
@@ -149,21 +154,26 @@ class TestUjeebuExtractRequest:
             quick_mode=True,
             callback=lambda x: x
         )
-        assert request.query_params.get('quick_mode') == True
+        api_params = request.meta['ujeebu']['api_params']
+        assert api_params.get('quick_mode') == True
 
 
 class TestUjeebuSerpRequest:
     """Tests for UjeebuSerpRequest class."""
 
     def test_basic_serp_request(self):
-        """Test basic SERP request creation."""
+        """Test basic SERP request creation with search only (no url required)."""
         request = UjeebuSerpRequest(
             search='python web scraping',
             callback=lambda x: x
         )
+        # SERP with search only should use placeholder URL
         assert 'google.com' in request.url
         assert request.meta['ujeebu']['endpoint'] == '/serp'
         assert request.meta['ujeebu']['request_type'] == 'serp'
+        # Search should be in api_params
+        api_params = request.meta['ujeebu']['api_params']
+        assert api_params.get('search') == 'python web scraping'
 
     def test_serp_with_options(self):
         """Test SERP request with various options."""
@@ -177,13 +187,14 @@ class TestUjeebuSerpRequest:
             page=2,
             callback=lambda x: x
         )
-        assert request.query_params.get('search') == 'test query'
-        assert request.query_params.get('search_type') == 'news'
-        assert request.query_params.get('lang') == 'fr'
-        assert request.query_params.get('location') == 'fr'
-        assert request.query_params.get('device') == 'mobile'
-        assert request.query_params.get('results_count') == 20
-        assert request.query_params.get('page') == 2
+        api_params = request.meta['ujeebu']['api_params']
+        assert api_params.get('search') == 'test query'
+        assert api_params.get('search_type') == 'news'
+        assert api_params.get('lang') == 'fr'
+        assert api_params.get('location') == 'fr'
+        assert api_params.get('device') == 'mobile'
+        assert api_params.get('results_count') == 20
+        assert api_params.get('page') == 2
 
     def test_serp_requires_search_or_url(self):
         """Test that SERP request requires search or url."""
@@ -269,6 +280,131 @@ class TestUjeebuMiddleware:
         # Check the value (Scrapy stores header values as lists of bytes)
         apikey_value = new_request.headers.get(b'Apikey') or new_request.headers.get('Apikey')
         assert apikey_value == [b'test-api-key'] or apikey_value == b'test-api-key' or apikey_value == 'test-api-key'
+
+    def test_middleware_post_request_with_extract_rules(self):
+        """Test that extract_rules are sent in POST body, not query string."""
+        settings = MagicMock()
+        settings.get = lambda key, default=None: {
+            'UJEEBU_ENABLED': True,
+            'UJEEBU_API_KEY': 'test-api-key',
+            'UJEEBU_BASE_URL': 'https://api.ujeebu.com',
+            'UJEEBU_DEFAULT_PROXY_TYPE': None,
+            'UJEEBU_DEFAULT_TIMEOUT': 60
+        }.get(key, default)
+
+        middleware = UjeebuMiddleware(settings)
+
+        # Create a scrape request with extract_rules
+        extract_rules = {
+            'title': {'selector': 'h1', 'type': 'text'},
+            'price': {'selector': '.price', 'type': 'text'}
+        }
+        request = UjeebuScrapeRequest(
+            url='https://example.com',
+            extract_rules=extract_rules,
+            proxy_type='residential',
+            callback=lambda x: x
+        )
+
+        # Process the request
+        spider = MagicMock()
+        new_request = middleware.process_request(request, spider)
+
+        # Should return a POST request
+        assert new_request is not None
+        assert new_request.method == 'POST'
+
+        # URL should NOT contain extract_rules in query string
+        assert 'extract_rules' not in new_request.url
+
+        # Body should be JSON with extract_rules
+        assert new_request.body is not None
+        body_data = json.loads(new_request.body.decode('utf-8') if isinstance(new_request.body, bytes) else new_request.body)
+        assert 'extract_rules' in body_data
+        assert body_data['extract_rules'] == extract_rules
+        assert body_data['url'] == 'https://example.com'
+        assert body_data['proxy_type'] == 'residential'
+
+    def test_middleware_post_request_with_raw_html(self):
+        """Test that raw_html is sent in POST body as form data."""
+        settings = MagicMock()
+        settings.get = lambda key, default=None: {
+            'UJEEBU_ENABLED': True,
+            'UJEEBU_API_KEY': 'test-api-key',
+            'UJEEBU_BASE_URL': 'https://api.ujeebu.com',
+            'UJEEBU_DEFAULT_PROXY_TYPE': None,
+            'UJEEBU_DEFAULT_TIMEOUT': 60
+        }.get(key, default)
+
+        middleware = UjeebuMiddleware(settings)
+
+        # Create an extract request with raw_html
+        raw_html_content = '<html><body><article><h1>Test Title</h1></article></body></html>'
+        request = UjeebuExtractRequest(
+            url='https://example.com/article',
+            raw_html=raw_html_content,
+            callback=lambda x: x
+        )
+
+        # Process the request
+        spider = MagicMock()
+        new_request = middleware.process_request(request, spider)
+
+        # Should return a POST request
+        assert new_request is not None
+        assert new_request.method == 'POST'
+
+        # URL should NOT contain raw_html in query string
+        assert 'raw_html' not in new_request.url
+
+        # Body should be form-encoded
+        assert new_request.body is not None
+        body_str = new_request.body.decode('utf-8') if isinstance(new_request.body, bytes) else new_request.body
+        assert 'raw_html=' in body_str
+
+        # Content-Type should be form-urlencoded
+        content_type = new_request.headers.get(b'Content-Type') or new_request.headers.get('Content-Type')
+        assert content_type is not None
+        content_type_str = content_type[0].decode('utf-8') if isinstance(content_type, list) else (content_type.decode('utf-8') if isinstance(content_type, bytes) else content_type)
+        assert 'application/x-www-form-urlencoded' in content_type_str
+
+    def test_middleware_get_request_uses_query_params(self):
+        """Test that GET requests use query parameters, not body."""
+        settings = MagicMock()
+        settings.get = lambda key, default=None: {
+            'UJEEBU_ENABLED': True,
+            'UJEEBU_API_KEY': 'test-api-key',
+            'UJEEBU_BASE_URL': 'https://api.ujeebu.com',
+            'UJEEBU_DEFAULT_PROXY_TYPE': None,
+            'UJEEBU_DEFAULT_TIMEOUT': 60
+        }.get(key, default)
+
+        middleware = UjeebuMiddleware(settings)
+
+        # Create a basic scrape request (should use GET)
+        request = UjeebuScrapeRequest(
+            url='https://example.com',
+            wait_for=2000,
+            proxy_type='residential',
+            scroll_down=True,
+            callback=lambda x: x
+        )
+
+        # Process the request
+        spider = MagicMock()
+        new_request = middleware.process_request(request, spider)
+
+        # Should return a GET request
+        assert new_request is not None
+        assert new_request.method == 'GET'
+
+        # URL should contain parameters in query string
+        assert 'wait_for=' in new_request.url or 'wait_for%3D' in new_request.url
+        assert 'proxy_type=' in new_request.url or 'proxy_type%3D' in new_request.url
+        assert 'scroll_down=' in new_request.url or 'scroll_down%3D' in new_request.url
+
+        # Body should be empty
+        assert not new_request.body or new_request.body == b''
 
     def test_middleware_ignores_regular_requests(self):
         """Test that middleware ignores non-Ujeebu requests."""

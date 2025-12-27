@@ -20,7 +20,12 @@ log = logging.getLogger('scrapy.ujeebu')
 
 
 class UjeebuBaseRequest(Request):
-    """Base class for all Ujeebu API requests."""
+    """Base class for all Ujeebu API requests.
+
+    This class centralizes the decision of whether to use POST or GET,
+    and prepares the API parameters accordingly. The middleware simply
+    reads the prepared data from the request.
+    """
 
     # Default API endpoint - to be overridden by subclasses
     ENDPOINT = '/scrape'
@@ -32,7 +37,6 @@ class UjeebuBaseRequest(Request):
                  params=None,
                  headers=None,
                  meta=None,
-                 body=None,
                  **kwargs):
         params = params or {}
         meta = copy.deepcopy(meta) or {}
@@ -40,53 +44,65 @@ class UjeebuBaseRequest(Request):
         if headers:
             headers = self.handle_headers(headers)
 
-        # Determine if this is a POST request (for extract_rules or raw_html)
-        self.use_post = self._should_use_post(params)
+        # Should this request use POST?
+        use_post = self._should_use_post(params)
 
-        if self.use_post:
-            # For POST requests, we'll handle this in the middleware
-            self.post_data = self._prepare_post_data(url, params)
-            self.query_params = {}
+        # Prepare API parameters based on request method
+        if use_post:
+            # POST: store raw params dict for JSON/form serialization by middleware
+            api_params = self._prepare_api_params(url, params)
         else:
-            # For GET requests
-            query_params = self.handle_ujeebu_params({
-                **{'url': url},
+            # GET: encode params for query string
+            api_params = self.handle_ujeebu_params({
+                'url': url,
                 **params
             })
-            self.query_params = query_params
-            self.post_data = None
 
+        # Store all Ujeebu-related data in meta for middleware to use
         meta['ujeebu'] = {
-            'url': url,
+            'original_url': url,
             'endpoint': self.ENDPOINT,
             'request_type': self.REQUEST_TYPE,
-            'use_post': self.use_post
+            'use_post': use_post,
+            'api_params': api_params,
         }
 
         errback = kwargs.pop("errback", self.handle_error)
 
+        # Parent Request - middleware will replace URL and add body if needed
         super().__init__(
             url,
             headers=headers,
-            body=body,
             meta=meta,
+            method='POST' if use_post else 'GET',
             errback=errback,
             **kwargs
         )
 
     def _should_use_post(self, params):
-        """Determine if the request should use POST method."""
-        return bool('extract_rules' in params and params['extract_rules'])
+        """
+        Determine if the request should use POST method.
 
-    def _prepare_post_data(self, url, params):
-        """Prepare data for POST request."""
+        Override in subclasses for endpoint-specific logic.
+        Default: use POST when extract_rules is provided.
+        """
+        return bool(params.get('extract_rules'))
+
+    def _prepare_api_params(self, url, params):
+        """
+        Prepare API parameters for the request.
+
+        For POST requests, returns raw dict (middleware will serialize).
+        Override in subclasses for custom preparation.
+        """
         return {
             'url': url,
             **params
         }
 
-    def get_query_params(self):
-        return self.query_params
+    def get_api_params(self):
+        """Get the prepared API parameters from meta."""
+        return self.meta.get('ujeebu', {}).get('api_params', {})
 
     @staticmethod
     def handle_url(url):
@@ -180,7 +196,6 @@ class UjeebuScrapeRequest(UjeebuBaseRequest):
                  params=None,
                  headers=None,
                  meta=None,
-                 body=None,
                  extract_rules=None,
                  response_type='html',
                  js=True,
@@ -202,7 +217,6 @@ class UjeebuScrapeRequest(UjeebuBaseRequest):
             params: Additional API parameters (merged with named params)
             headers: Custom headers to forward
             meta: Scrapy request metadata
-            body: Request body
             extract_rules: Rules for structured data extraction
             response_type: Type of response ('html', 'raw', 'pdf', 'screenshot')
             js: Enable JavaScript execution
@@ -250,7 +264,6 @@ class UjeebuScrapeRequest(UjeebuBaseRequest):
             params=params,
             headers=headers,
             meta=meta,
-            body=body,
             **kwargs
         )
 
@@ -303,7 +316,6 @@ class UjeebuExtractRequest(UjeebuBaseRequest):
                  params=None,
                  headers=None,
                  meta=None,
-                 body=None,
                  raw_html=None,
                  text=True,
                  html=True,
@@ -326,7 +338,6 @@ class UjeebuExtractRequest(UjeebuBaseRequest):
             params: Additional API parameters (merged with named params)
             headers: Custom headers to forward
             meta: Scrapy request metadata
-            body: Request body
             raw_html: HTML content to extract from (instead of fetching URL)
             text: Extract article text
             html: Extract article HTML
@@ -380,7 +391,6 @@ class UjeebuExtractRequest(UjeebuBaseRequest):
             params=params,
             headers=headers,
             meta=meta,
-            body=body,
             **kwargs
         )
 
@@ -388,8 +398,8 @@ class UjeebuExtractRequest(UjeebuBaseRequest):
         """Extract API uses POST when raw_html is provided."""
         return bool('raw_html' in params and params['raw_html'])
 
-    def _prepare_post_data(self, url, params):
-        """Prepare form data for POST request with raw_html."""
+    def _prepare_api_params(self, url, params):
+        """Prepare data for POST request with raw_html."""
         return {
             'url': url,
             **params
@@ -434,7 +444,6 @@ class UjeebuSerpRequest(UjeebuBaseRequest):
                  params=None,
                  headers=None,
                  meta=None,
-                 body=None,
                  search_type='search',
                  lang='en',
                  location='us',
@@ -454,7 +463,6 @@ class UjeebuSerpRequest(UjeebuBaseRequest):
             params: Additional API parameters (merged with named params)
             headers: Custom headers to forward
             meta: Scrapy request metadata
-            body: Request body
             search_type: Type of search ('search', 'images', 'news', 'videos', 'maps')
             lang: Language code for results
             location: Country code for geo-targeting
@@ -488,14 +496,14 @@ class UjeebuSerpRequest(UjeebuBaseRequest):
             params['extra_params'] = extra_params
 
         # SERP requests use a placeholder URL since the actual search is API-based
-        request_url = url or f"https://www.google.com/search?q={urllib.parse.quote_plus(search or '')}"
+        # If no URL is provided, use a placeholder that the middleware will replace
+        request_url = url or 'https://www.google.com/search'
 
         super().__init__(
             request_url,
             params=params,
             headers=headers,
             meta=meta,
-            body=body,
             **kwargs
         )
 
