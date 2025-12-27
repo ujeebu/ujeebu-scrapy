@@ -7,11 +7,9 @@ It automatically routes UjeebuRequest classes through the appropriate Ujeebu API
 
 import json
 import logging
-import urllib.parse
 
 from scrapy import Request
 from scrapy.exceptions import NotConfigured
-from scrapy.http import TextResponse
 
 from .ujeebu_request import (
     UjeebuBaseRequest,
@@ -113,22 +111,10 @@ class UjeebuMiddleware:
         # Prepare headers with API key
         headers = dict(request.headers) if request.headers else {}
         headers['apiKey'] = self.api_key
+        headers['Content-Type'] = 'application/json'
 
-        # Handle different content types based on endpoint and params
-        if endpoint == '/extract' and 'raw_html' in api_params:
-            # Extract API with raw_html uses form-urlencoded data
-            headers['Content-Type'] = 'application/x-www-form-urlencoded'
-            encoded_params = {}
-            for k, v in api_params.items():
-                if isinstance(v, (dict, list)):
-                    encoded_params[k] = urllib.parse.quote(json.dumps(v))
-                elif v is not None:
-                    encoded_params[k] = urllib.parse.quote(str(v))
-            body = '&'.join(f'{k}={v}' for k, v in encoded_params.items())
-        else:
-            # Default: JSON body (used for extract_rules, etc.)
-            headers['Content-Type'] = 'application/json'
-            body = json.dumps(api_params)
+        # Serialize all POST data as JSON
+        body = json.dumps(api_params)
 
         log.debug(f'[UjeebuAPI] POST request to {endpoint}')
 

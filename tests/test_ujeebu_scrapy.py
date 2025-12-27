@@ -357,16 +357,18 @@ class TestUjeebuMiddleware:
         # URL should NOT contain raw_html in query string
         assert 'raw_html' not in new_request.url
 
-        # Body should be form-encoded
+        # Body should be JSON-encoded (all POST requests use JSON)
         assert new_request.body is not None
-        body_str = new_request.body.decode('utf-8') if isinstance(new_request.body, bytes) else new_request.body
-        assert 'raw_html=' in body_str
+        body_data = json.loads(new_request.body.decode('utf-8') if isinstance(new_request.body, bytes) else new_request.body)
+        assert 'raw_html' in body_data
+        assert body_data['raw_html'] == raw_html_content
+        assert body_data['url'] == 'https://example.com/article'
 
-        # Content-Type should be form-urlencoded
+        # Content-Type should be application/json
         content_type = new_request.headers.get(b'Content-Type') or new_request.headers.get('Content-Type')
         assert content_type is not None
         content_type_str = content_type[0].decode('utf-8') if isinstance(content_type, list) else (content_type.decode('utf-8') if isinstance(content_type, bytes) else content_type)
-        assert 'application/x-www-form-urlencoded' in content_type_str
+        assert 'application/json' in content_type_str
 
     def test_middleware_get_request_uses_query_params(self):
         """Test that GET requests use query parameters, not body."""
