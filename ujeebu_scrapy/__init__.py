@@ -20,8 +20,8 @@ Example:
 """
 
 __author__ = """Ujeebu"""
-__email__ = 'y.alhyane@gmail.com'
-__version__ = '0.2.0'
+__email__ = "support@ujeebu.com"
+__version__ = "0.2.0"
 
 
 from .ujeebu_middleware import UjeebuMiddleware
