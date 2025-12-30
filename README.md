@@ -423,17 +423,7 @@ yield UjeebuScrapeRequest(
 ```
 
 ## API Credits
-
-Different operations consume different amounts of credits:
-
-| Operation | Credits |
-|-----------|---------|
-| Scrape (rotating proxy) | 1 |
-| Scrape (premium proxy) | 5 |
-| Scrape (residential proxy) | 10 |
-| Screenshot/PDF | +1 |
-| Extract | 1-5 |
-| SERP | 25 |
+Ujeebu APIs use a credit-based system. Each request consumes credits based on the type and parameters used. Check the documentation for more details: [ujeebu.com/docs](https://ujeebu.com/docs)
 
 Check your usage at [ujeebu.com/dashboard](https://ujeebu.com/dashboard)
 
