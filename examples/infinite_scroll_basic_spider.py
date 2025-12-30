@@ -11,10 +11,11 @@ The Ujeebu Scrape API provides several scrolling options:
 - scroll_callback: Custom JS to control scrolling
 - scroll_to_selector: Scroll to specific element
 
-Run with: scrapy runspider infinite_scroll_spider.py -o products.json
+Run with: scrapy runspider infinite_scroll_basic_spider.py -o products.json
 """
 
 import scrapy
+import os
 from ujeebu_scrapy import UjeebuScrapeRequest
 
 
@@ -29,14 +30,15 @@ class InfiniteScrollSpider(scrapy.Spider):
     - Combining scrolling with extract_rules
     """
 
-    name = 'infinite_scroll'
+    name = 'infinite_scroll_basic'
 
     custom_settings = {
         'DOWNLOADER_MIDDLEWARES': {
             'ujeebu_scrapy.UjeebuMiddleware': 543,
         },
         'UJEEBU_ENABLED': True,
-        'UJEEBU_API_KEY': '__YOUR_API_KEY__',  # Replace with your API key
+        'UJEEBU_API_KEY': os.environ.get('UJEEBU_API_KEY'),
+        'UJEEBU_BASE_URL': os.environ.get('UJEEBU_BASE_URL', 'https://api.ujeebu.com'),
     }
 
     def start_requests(self):
@@ -94,11 +96,12 @@ class InfiniteScrollSpider(scrapy.Spider):
 
         # Example 4: Scroll to specific element
         yield UjeebuScrapeRequest(
-            url='https://example-long-page.com/',
+            url='https://scrape.li/infinite-scroll/',
             params={
                 'js': True,
                 'scroll_down': True,
-                'scroll_to_selector': '#footer',  # Scroll until footer is visible
+                'scroll_wait': 500,
+                'scroll_to_selector': '.load-more-section',  # Scroll until footer is visible
             },
             callback=self.parse_page,
             meta={'scroll_type': 'to_selector'}
@@ -108,17 +111,18 @@ class InfiniteScrollSpider(scrapy.Spider):
         # The callback should return true to continue scrolling, false to stop
         scroll_callback_js = '''
         () => {
-            // Stop scrolling after 10 quotes are loaded
-            const quotes = document.querySelectorAll('.quote');
-            return quotes.length < 10;
+            // Stop scrolling after 20 products are loaded
+            const products = document.querySelectorAll('.product-card');
+            return products.length < 20;
         }
         '''
 
         yield UjeebuScrapeRequest(
-            url='https://quotes.toscrape.com/scroll',
+            url='https://scrape.li/infinite-scroll/',
             params={
                 'js': True,
                 'scroll_down': True,
+                'progressive_scroll': True,
                 'scroll_callback': scroll_callback_js,
                 'scroll_wait': 500,
             },
@@ -127,24 +131,21 @@ class InfiniteScrollSpider(scrapy.Spider):
         )
 
         # Example 6: Click "Load More" button with custom JS + scroll
+        ## script will be run in an async context
         load_more_js = '''
-        async () => {
-            const button = document.querySelector('.load-more-btn');
+            const button = document.querySelector('.load-more');
             if (button) {
-                for (let i = 0; i < 5; i++) {
-                    button.click();
-                    await new Promise(r => setTimeout(r, 1000));
-                }
+                button.click();
+                await new Promise(r => setTimeout(r, 1000));
             }
-        }
         '''
 
         yield UjeebuScrapeRequest(
-            url='https://example-loadmore.com/',
+            url='https://scrape.li/infinite-scroll/',
             params={
                 'js': True,
                 'custom_js': load_more_js,
-                'wait_for': 6000,  # Wait for all clicks to process
+                'wait_for': 5000,
             },
             callback=self.parse_page,
             meta={'scroll_type': 'load_more_button'}
@@ -198,91 +199,6 @@ class InfiniteScrollSpider(scrapy.Spider):
             'title': response.css('title::text').get(),
             'body_length': len(response.text),
         }
-
-
-class EcommerceCrawlerSpider(scrapy.Spider):
-    """
-    A practical e-commerce crawler that handles infinite scroll product listings.
-    """
-
-    name = 'ecommerce_scroll'
-
-    custom_settings = {
-        'DOWNLOADER_MIDDLEWARES': {
-            'ujeebu_scrapy.UjeebuMiddleware': 543,
-        },
-        'UJEEBU_ENABLED': True,
-        'UJEEBU_API_KEY': '__YOUR_API_KEY__',
-    }
-
-    def start_requests(self):
-        """Start crawling product listings."""
-        categories = [
-            'https://example-shop.com/electronics',
-            'https://example-shop.com/clothing',
-            'https://example-shop.com/books',
-        ]
-
-        for category_url in categories:
-            yield UjeebuScrapeRequest(
-                url=category_url,
-                params={
-                    'js': True,
-                    'scroll_down': True,
-                    'progressive_scroll': True,
-                    'scroll_wait': 800,
-                    'wait_for': '.product-card',  # Wait for products to load
-                },
-                extract_rules={
-                    'products': {
-                        'selector': '.product-card',
-                        'type': 'obj',
-                        'multiple': True,
-                        'children': {
-                            'name': {'selector': '.product-name', 'type': 'text'},
-                            'price': {'selector': '.price', 'type': 'text'},
-                            'original_price': {'selector': '.original-price', 'type': 'text'},
-                            'rating': {'selector': '.rating', 'type': 'text'},
-                            'reviews': {'selector': '.reviews-count', 'type': 'text'},
-                            'image': {'selector': 'img', 'type': 'image'},
-                            'link': {'selector': 'a', 'type': 'link'},
-                        }
-                    },
-                    'category_name': {'selector': 'h1', 'type': 'text'},
-                    'total_products': {'selector': '.product-count', 'type': 'text'},
-                },
-                callback=self.parse_products,
-                meta={'category_url': category_url}
-            )
-
-    def parse_products(self, response):
-        """Parse product listings."""
-        import json
-
-        try:
-            data = json.loads(response.text)
-        except json.JSONDecodeError:
-            self.logger.error(f"Failed to parse response for {response.url}")
-            return
-
-        if data.get('success'):
-            result = data.get('result', {})
-
-            category_name = result.get('category_name', 'Unknown')
-            products = result.get('products', [])
-
-            for product in products:
-                yield {
-                    'category': category_name,
-                    'category_url': response.meta.get('category_url'),
-                    'name': product.get('name'),
-                    'price': product.get('price'),
-                    'original_price': product.get('original_price'),
-                    'rating': product.get('rating'),
-                    'reviews': product.get('reviews'),
-                    'image': product.get('image'),
-                    'link': product.get('link'),
-                }
 
 
 if __name__ == '__main__':

@@ -385,11 +385,16 @@ The `examples/` directory contains complete spider examples:
 
 - **`basic_scrape_spider.py`**: Basic scraping with JavaScript rendering
 - **`extract_rules_spider.py`**: Structured data extraction with extract_rules
-- **`article_extractor_spider.py`**: Article content extraction
-- **`serp_spider.py`**: Google search results
+- **`article_basic_spider.py`**: Article content extraction
+- **`news_crawler_spider.py`**: News article crawler
+- **`serp_basic_spider.py`**: Google search results
+- **`serp_and_scrape_spider.py`**: SERP + scraping workflow
+- **`geo_serp_spider.py`**: Geo-targeted search
 - **`screenshot_spider.py`**: Screenshots and PDFs
-- **`infinite_scroll_spider.py`**: Handling infinite scroll pages
-- **`proxy_spider.py`**: Proxy types and geo-targeting
+- **`infinite_scroll_basic_spider.py`**: Handling infinite scroll pages
+- **`ecommerce_scroll_spider.py`**: E-commerce with infinite scroll
+- **`ecommerce_pipeline_spider.py`**: Complete e-commerce pipeline
+- **`proxy_basic_spider.py`**: Proxy types and geo-targeting
 
 ## Error Handling
 

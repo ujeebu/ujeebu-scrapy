@@ -8,6 +8,7 @@ Run with: scrapy runspider basic_scrape_spider.py -o output.json
 """
 
 import scrapy
+import os
 from ujeebu_scrapy import UjeebuScrapeRequest
 
 
@@ -30,9 +31,13 @@ class BasicScrapeSpider(scrapy.Spider):
         },
         # Ujeebu API configuration
         'UJEEBU_ENABLED': True,
-        'UJEEBU_API_KEY': '__YOUR_API_KEY__',  # Replace with your API key
+        'UJEEBU_API_KEY': os.environ.get('UJEEBU_API_KEY'),
+        'UJEEBU_BASE_URL': os.environ.get('UJEEBU_BASE_URL', 'https://api.ujeebu.com'),
         # Optional: Set default proxy type for all requests
         # 'UJEEBU_DEFAULT_PROXY_TYPE': 'rotating',
+        'CONCURRENT_REQUESTS': 10,
+        'CLOSESPIDER_TIMEOUT': 180,
+        'DEPTH_LIMIT': 2
     }
 
     def start_requests(self):
@@ -52,6 +57,7 @@ class BasicScrapeSpider(scrapy.Spider):
         yield UjeebuScrapeRequest(
             url='https://httpbin.org/headers',
             js=True,
+            response_type='raw',
             proxy_type='rotating',
             callback=self.parse_headers,
             meta={'example': 'named_params'}
@@ -59,10 +65,10 @@ class BasicScrapeSpider(scrapy.Spider):
 
         # Example 3: Wait for specific element
         yield UjeebuScrapeRequest(
-            url='https://quotes.toscrape.com/js/',
+            url='https://books.toscrape.com/',
             params={
                 'js': True,
-                'wait_for': '.quote',  # Wait for element with class 'quote'
+                'wait_for': '.page_inner',  # Wait for element with class 'quote'
             },
             callback=self.parse_quotes,
             meta={'example': 'wait_for_selector'}
@@ -95,4 +101,3 @@ if __name__ == '__main__':
     })
     process.crawl(BasicScrapeSpider)
     process.start()
-

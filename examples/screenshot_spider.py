@@ -4,6 +4,26 @@ Screenshot and PDF Spider Example
 This example demonstrates how to use UjeebuScrapeRequest to
 capture screenshots and generate PDFs of web pages.
 
+IMPORTANT: About dont_filter=True
+-------------------------------------
+This spider uses dont_filter=True for testing purposes because we're making
+multiple requests to the SAME URLs with DIFFERENT Ujeebu parameters.
+
+By default, Scrapy filters duplicate requests based on the URL to avoid
+re-scraping the same page. However, in this example, we want to:
+- Capture fullpage vs viewport screenshots of the same URL
+- Generate both screenshots AND PDFs of the same URL
+- Test different device types (mobile, desktop) for the same URL
+- Capture specific elements vs full pages
+
+Since the target URLs are the same but the Ujeebu parameters (response_type,
+screenshot_fullpage, device, etc.) are different, we use dont_filter=True
+to tell Scrapy: "Yes, I know this URL was already requested, but this is a
+different operation with different parameters - please process it anyway."
+
+In production, you typically wouldn't need dont_filter=True unless you're
+intentionally scraping the same URL with different configurations.
+
 Run with: scrapy runspider screenshot_spider.py
 """
 
@@ -35,7 +55,8 @@ class ScreenshotSpider(scrapy.Spider):
             'ujeebu_scrapy.UjeebuMiddleware': 543,
         },
         'UJEEBU_ENABLED': True,
-        'UJEEBU_API_KEY': '__YOUR_API_KEY__',  # Replace with your API key
+        'UJEEBU_API_KEY': os.environ.get('UJEEBU_API_KEY'),
+        'UJEEBU_BASE_URL': os.environ.get('UJEEBU_BASE_URL', 'https://api.ujeebu.com'),
     }
 
     # Output directory for saved files
@@ -50,13 +71,14 @@ class ScreenshotSpider(scrapy.Spider):
         """Generate screenshot and PDF requests."""
 
         urls = [
-            'https://example.com',
+            'https://ujeebu.com/blog/',
             'https://quotes.toscrape.com/',
             'https://httpbin.org/html',
         ]
 
         for url in urls:
             # Example 1: Full page screenshot
+            # Note: dont_filter=True allows multiple requests to same URL with different params
             yield UjeebuScrapeRequest(
                 url=url,
                 params={
@@ -67,10 +89,12 @@ class ScreenshotSpider(scrapy.Spider):
                     'json': True,  # Get base64-encoded response
                 },
                 callback=self.save_screenshot,
+                dont_filter=True,  # Allow this request even if URL was already requested
                 meta={'screenshot_type': 'fullpage'}
             )
 
             # Example 2: Viewport screenshot (what user sees)
+            # Note: Same URL as above but different screenshot_fullpage parameter
             yield UjeebuScrapeRequest(
                 url=url,
                 params={
@@ -80,10 +104,12 @@ class ScreenshotSpider(scrapy.Spider):
                     'json': True,
                 },
                 callback=self.save_screenshot,
+                dont_filter=True,  # Different params (viewport vs fullpage) = different operation
                 meta={'screenshot_type': 'viewport'}
             )
 
             # Example 3: PDF generation
+            # Note: Same URL but different response_type (pdf vs screenshot)
             yield UjeebuScrapeRequest(
                 url=url,
                 params={
@@ -92,13 +118,15 @@ class ScreenshotSpider(scrapy.Spider):
                     'wait_for': 1000,
                     'json': True,
                 },
+                dont_filter=True,  # Different response_type = different operation
                 callback=self.save_pdf,
                 meta={'doc_type': 'pdf'}
             )
 
         # Example 4: Mobile screenshot
+        # Note: Same URL but different device type
         yield UjeebuScrapeRequest(
-            url='https://example.com',
+            url='https://ujeebu.com/blog/',
             params={
                 'response_type': 'screenshot',
                 'device': 'iPhone 12',
@@ -106,13 +134,15 @@ class ScreenshotSpider(scrapy.Spider):
                 'js': True,
                 'json': True,
             },
+            dont_filter=True,  # Different device = different screenshot
             callback=self.save_screenshot,
             meta={'screenshot_type': 'mobile_iphone12'}
         )
 
         # Example 5: Custom viewport size
+        # Note: Same URL but custom dimensions
         yield UjeebuScrapeRequest(
-            url='https://example.com',
+            url='https://ujeebu.com/blog/',
             params={
                 'response_type': 'screenshot',
                 'window_width': 1920,
@@ -121,11 +151,13 @@ class ScreenshotSpider(scrapy.Spider):
                 'js': True,
                 'json': True,
             },
+            dont_filter=True,  # Different viewport dimensions = different screenshot
             callback=self.save_screenshot,
             meta={'screenshot_type': 'custom_1920x1080'}
         )
 
         # Example 6: Partial screenshot (specific element)
+        # Note: Capturing only a specific element, not the full page
         yield UjeebuScrapeRequest(
             url='https://quotes.toscrape.com/',
             params={
@@ -134,19 +166,22 @@ class ScreenshotSpider(scrapy.Spider):
                 'js': True,
                 'json': True,
             },
+            dont_filter=True,  # Different screenshot_partial = different screenshot
             callback=self.save_screenshot,
             meta={'screenshot_type': 'element_quote'}
         )
 
-        # Example 7: Partial screenshot with coordinates
+        # Example 7: Partial screenshot with selectors
+        # Note: Another partial screenshot of the same URL with different selector
         yield UjeebuScrapeRequest(
-            url='https://example.com',
+            url='https://quotes.toscrape.com/',
             params={
                 'response_type': 'screenshot',
-                'screenshot_partial': {'x': 0, 'y': 0, 'width': 400, 'height': 300},
+                'screenshot_partial': '.quote:first-child',
                 'js': True,
                 'json': True,
             },
+            dont_filter=True,  # Testing: same URL, same element selector
             callback=self.save_screenshot,
             meta={'screenshot_type': 'coordinates'}
         )
@@ -242,4 +277,3 @@ if __name__ == '__main__':
     })
     process.crawl(ScreenshotSpider)
     process.start()
-

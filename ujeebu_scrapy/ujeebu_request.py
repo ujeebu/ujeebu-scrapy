@@ -47,16 +47,16 @@ class UjeebuBaseRequest(Request):
         # Should this request use POST?
         use_post = self._should_use_post(params)
 
-        # Prepare API parameters based on request method
+        # Prepare API parameters
+        raw_params = self._prepare_api_params(url, params)
+
+        # Encode params based on request method
         if use_post:
             # POST: store raw params dict for JSON/form serialization by middleware
-            api_params = self._prepare_api_params(url, params)
+            api_params = raw_params
         else:
             # GET: encode params for query string
-            api_params = self.handle_ujeebu_params({
-                'url': url,
-                **params
-            })
+            api_params = self.handle_ujeebu_params(raw_params)
 
         # Store all Ujeebu-related data in meta for middleware to use
         meta['ujeebu'] = {
@@ -510,6 +510,23 @@ class UjeebuSerpRequest(UjeebuBaseRequest):
     def _should_use_post(self, params):
         """SERP API always uses GET."""
         return False
+
+    def _prepare_api_params(self, url, params):
+        """
+        Prepare API parameters for SERP request.
+
+        If a 'search' query is provided, don't include the URL parameter
+        since the SERP API only needs the search query in that case.
+        """
+        if params.get('search'):
+            # When search is provided, only send search and other params, not the URL
+            return params
+        else:
+            # When using a URL directly, include it
+            return {
+                'url': url,
+                **params
+            }
 
     @classmethod
     def handle_ujeebu_params(cls, params):

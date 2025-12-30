@@ -7,10 +7,11 @@ to scrape structured data from web pages without writing CSS selectors in Python
 The extract_rules feature allows you to define extraction rules as JSON that
 the Ujeebu API will use to extract data from the rendered page.
 
-Run with: scrapy runspider extract_rules_spider.py -o products.json
+Run with: scrapy runspider extract_rules_spider.py -o data.json
 """
 
 import scrapy
+import os
 from ujeebu_scrapy import UjeebuScrapeRequest
 
 
@@ -26,12 +27,45 @@ class ExtractRulesSpider(scrapy.Spider):
 
     name = 'extract_rules'
 
+    # Define extract_rules as class attribute for reuse in pagination
+    QUOTES_EXTRACT_RULES = {
+        'quotes': {
+            'selector': '.quote',
+            'type': 'obj',
+            'multiple': True,
+            'children': {
+                'text': {
+                    'selector': '.text',
+                    'type': 'text'
+                },
+                'author': {
+                    'selector': '.author',
+                    'type': 'text'
+                },
+                'author_link': {
+                    'selector': 'a[href*="author"]',
+                    'type': 'link'
+                },
+                'tags': {
+                    'selector': '.tag',
+                    'type': 'text',
+                    'multiple': True
+                }
+            }
+        },
+        'next_page': {
+            'selector': '.next a',
+            'type': 'link'
+        }
+    }
+
     custom_settings = {
         'DOWNLOADER_MIDDLEWARES': {
             'ujeebu_scrapy.UjeebuMiddleware': 543,
         },
         'UJEEBU_ENABLED': True,
-        'UJEEBU_API_KEY': '__YOUR_API_KEY__',  # Replace with your API key
+        'UJEEBU_API_KEY': os.environ.get('UJEEBU_API_KEY'),
+        'UJEEBU_BASE_URL': os.environ.get('UJEEBU_BASE_URL', 'https://api.ujeebu.com'),
     }
 
     def start_requests(self):
@@ -40,36 +74,7 @@ class ExtractRulesSpider(scrapy.Spider):
         # Example 1: Extract quotes with authors and tags
         yield UjeebuScrapeRequest(
             url='https://quotes.toscrape.com/',
-            extract_rules={
-                'quotes': {
-                    'selector': '.quote',
-                    'type': 'obj',
-                    'multiple': True,
-                    'children': {
-                        'text': {
-                            'selector': '.text',
-                            'type': 'text'
-                        },
-                        'author': {
-                            'selector': '.author',
-                            'type': 'text'
-                        },
-                        'author_link': {
-                            'selector': 'a[href*="author"]',
-                            'type': 'link'
-                        },
-                        'tags': {
-                            'selector': '.tag',
-                            'type': 'text',
-                            'multiple': True
-                        }
-                    }
-                },
-                'next_page': {
-                    'selector': '.next a',
-                    'type': 'link'
-                }
-            },
+            extract_rules=self.QUOTES_EXTRACT_RULES,
             callback=self.parse_quotes,
             meta={'page': 1}
         )
@@ -117,7 +122,7 @@ class ExtractRulesSpider(scrapy.Spider):
 
         # Example 3: Extract meta information
         yield UjeebuScrapeRequest(
-            url='https://example.com/',
+            url='https://ujeebu.com/blog',
             extract_rules={
                 'title': {
                     'selector': 'title',
@@ -172,7 +177,7 @@ class ExtractRulesSpider(scrapy.Spider):
             if next_page:
                 yield UjeebuScrapeRequest(
                     url=response.urljoin(next_page),
-                    extract_rules=response.meta.get('extract_rules'),
+                    extract_rules=self.QUOTES_EXTRACT_RULES,
                     callback=self.parse_quotes,
                     meta={'page': response.meta.get('page', 1) + 1}
                 )
@@ -225,4 +230,3 @@ if __name__ == '__main__':
     })
     process.crawl(ExtractRulesSpider)
     process.start()
-

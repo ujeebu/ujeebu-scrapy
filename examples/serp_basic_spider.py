@@ -10,11 +10,12 @@ The SERP API supports:
 - Device emulation (desktop, mobile, tablet)
 - Pagination
 
-Run with: scrapy runspider serp_spider.py -o search_results.json
+Run with: scrapy runspider serp_basic_spider.py -o search_results.json
 """
 
 import scrapy
-from ujeebu_scrapy import UjeebuSerpRequest, UjeebuScrapeRequest, UjeebuExtractRequest
+import os
+from ujeebu_scrapy import UjeebuSerpRequest
 
 
 class SerpSpider(scrapy.Spider):
@@ -28,14 +29,15 @@ class SerpSpider(scrapy.Spider):
     - Pagination through results
     """
 
-    name = 'serp'
+    name = 'serp_basic'
 
     custom_settings = {
         'DOWNLOADER_MIDDLEWARES': {
             'ujeebu_scrapy.UjeebuMiddleware': 543,
         },
         'UJEEBU_ENABLED': True,
-        'UJEEBU_API_KEY': '__YOUR_API_KEY__',  # Replace with your API key
+        'UJEEBU_API_KEY': os.environ.get('UJEEBU_API_KEY'),
+        'UJEEBU_BASE_URL': os.environ.get('UJEEBU_BASE_URL', 'https://api.ujeebu.com'),
     }
 
     def start_requests(self):
@@ -210,70 +212,6 @@ class SerpSpider(scrapy.Spider):
                 'date': result.get('date'),
                 'duration': result.get('duration'),
             }
-
-
-class SerpAndScrapeSpider(scrapy.Spider):
-    """
-    A spider that combines SERP and Scrape APIs to:
-    1. Search Google for relevant pages
-    2. Scrape the content from top results
-    """
-
-    name = 'serp_and_scrape'
-
-    custom_settings = {
-        'DOWNLOADER_MIDDLEWARES': {
-            'ujeebu_scrapy.UjeebuMiddleware': 543,
-        },
-        'UJEEBU_ENABLED': True,
-        'UJEEBU_API_KEY': '__YOUR_API_KEY__',
-        'CONCURRENT_REQUESTS': 5,
-    }
-
-    def start_requests(self):
-        """Search for pages to scrape."""
-        yield UjeebuSerpRequest(
-            search='python scrapy examples',
-            search_type='search',
-            results_count=5,
-            callback=self.parse_serp
-        )
-
-    def parse_serp(self, response):
-        """Parse SERP results and scrape each page."""
-        import json
-
-        try:
-            data = json.loads(response.text)
-        except json.JSONDecodeError:
-            return
-
-        for result in data.get('organic_results', [])[:5]:
-            link = result.get('link')
-            if link:
-                # Scrape each result page
-                yield UjeebuScrapeRequest(
-                    url=link,
-                    js=True,
-                    wait_for=2000,
-                    callback=self.parse_page,
-                    meta={
-                        'serp_title': result.get('title'),
-                        'serp_position': result.get('position'),
-                    }
-                )
-
-    def parse_page(self, response):
-        """Parse scraped page content."""
-        yield {
-            'url': response.url,
-            'serp_title': response.meta.get('serp_title'),
-            'serp_position': response.meta.get('serp_position'),
-            'page_title': response.css('title::text').get(),
-            'h1': response.css('h1::text').get(),
-            'meta_description': response.css('meta[name="description"]::attr(content)').get(),
-            'word_count': len(response.text.split()),
-        }
 
 
 if __name__ == '__main__':

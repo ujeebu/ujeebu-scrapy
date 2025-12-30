@@ -7,8 +7,9 @@ It automatically routes UjeebuRequest classes through the appropriate Ujeebu API
 
 import json
 import logging
+from urllib.parse import urlparse
 
-from scrapy import Request
+from scrapy import Request, signals
 from scrapy.exceptions import NotConfigured
 
 from .ujeebu_request import (
@@ -55,7 +56,29 @@ class UjeebuMiddleware:
 
     @classmethod
     def from_crawler(cls, crawler):
-        return cls(crawler.settings)
+        middleware = cls(crawler.settings)
+
+        # Connect to spider_opened signal to add API domain to allowed_domains
+        crawler.signals.connect(middleware.spider_opened, signal=signals.spider_opened)
+        return middleware
+
+    def spider_opened(self, spider):
+        """Add the Ujeebu API domain to allowed_domains when the spider opens."""
+        if not self.enabled:
+            return
+
+        # Extract domain from base_url
+        parsed_url = urlparse(self.base_url)
+        api_domain = parsed_url.netloc
+
+        # Add API domain to allowed_domains if it exists
+        if hasattr(spider, 'allowed_domains') and spider.allowed_domains is not None:
+            if api_domain not in spider.allowed_domains:
+                # Convert to list if it's a tuple or other iterable
+                if not isinstance(spider.allowed_domains, list):
+                    spider.allowed_domains = list(spider.allowed_domains)
+                spider.allowed_domains.append(api_domain)
+                log.debug(f'[UjeebuAPI] Added {api_domain} to spider allowed_domains')
 
     def process_request(self, request, spider):
         """Process a request using the Ujeebu API if applicable."""

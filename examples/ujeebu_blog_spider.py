@@ -24,6 +24,7 @@ Requirements:
 import os
 
 import scrapy
+import os
 from ujeebu_scrapy import UjeebuScrapeRequest
 
 
@@ -44,7 +45,8 @@ class UjeebuBlogSpider(scrapy.Spider):
             'ujeebu_scrapy.UjeebuMiddleware': 543,
         },
         'UJEEBU_ENABLED': True,
-        'UJEEBU_API_KEY': os.environ.get('UJEEBU_API_KEY'),  # Replace with your API key
+        'UJEEBU_API_KEY': os.environ.get('UJEEBU_API_KEY'),
+        'UJEEBU_BASE_URL': os.environ.get('UJEEBU_BASE_URL', 'https://api.ujeebu.com'),
         'UJEEBU_DEFAULT_TIMEOUT': 60,
         # Recommended settings for API-based scraping
         'CONCURRENT_REQUESTS': 1,
@@ -186,4 +188,3 @@ if __name__ == '__main__':
 
     process.crawl(UjeebuBlogSpider)
     process.start()
-

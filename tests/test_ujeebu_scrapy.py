@@ -217,6 +217,28 @@ class TestUjeebuSerpRequest:
         )
         assert request.meta['ujeebu']['use_post'] == False
 
+    def test_serp_with_search_excludes_url_param(self):
+        """Test that SERP with search query does NOT include url param in API request."""
+        request = UjeebuSerpRequest(
+            search='python web scraping',
+            callback=lambda x: x
+        )
+        api_params = request.meta['ujeebu']['api_params']
+        # When search is provided, url should NOT be in api_params
+        assert 'url' not in api_params, "SERP with search should NOT have url param"
+        assert 'search' in api_params, "SERP with search should have search param"
+        assert api_params['search'] == 'python web scraping'
+
+    def test_serp_with_url_includes_url_param(self):
+        """Test that SERP with URL includes the url param in API request."""
+        request = UjeebuSerpRequest(
+            url='https://www.google.com/search?q=test',
+            callback=lambda x: x
+        )
+        api_params = request.meta['ujeebu']['api_params']
+        # When url is provided (not search), url should be in api_params
+        assert 'url' in api_params, "SERP with url should have url param"
+
 
 class TestUjeebuMiddleware:
     """Tests for UjeebuMiddleware class."""

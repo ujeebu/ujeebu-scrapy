@@ -18,6 +18,7 @@ from datetime import datetime
 from urllib.parse import urljoin
 
 import scrapy
+import os
 from ujeebu_scrapy import (
     UjeebuScrapeRequest,
     UjeebuExtractRequest,
@@ -42,7 +43,8 @@ class EcommercePipelineSpider(scrapy.Spider):
             'ujeebu_scrapy.UjeebuMiddleware': 543,
         },
         'UJEEBU_ENABLED': True,
-        'UJEEBU_API_KEY': '__YOUR_API_KEY__',  # Replace with your API key
+        'UJEEBU_API_KEY': os.environ.get('UJEEBU_API_KEY'),
+        'UJEEBU_BASE_URL': os.environ.get('UJEEBU_BASE_URL', 'https://api.ujeebu.com'),
 
         # Scrapy settings
         'CONCURRENT_REQUESTS': 8,
@@ -187,6 +189,7 @@ class EcommercePipelineSpider(scrapy.Spider):
                 is_article=True,
                 quick_mode=True,  # Faster for news
                 callback=self.parse_news_article,
+                params={'mode': 'd144dd3'},
                 meta={
                     'product': product,
                     'source': result.get('source') or result.get('site_name'),
@@ -368,4 +371,3 @@ if __name__ == '__main__':
     })
     process.crawl(EcommercePipelineSpider)
     process.start()
-
