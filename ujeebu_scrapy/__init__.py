@@ -21,7 +21,7 @@ Example:
 
 __author__ = """Ujeebu"""
 __email__ = "support@ujeebu.com"
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 
 
 from .ujeebu_middleware import UjeebuMiddleware
