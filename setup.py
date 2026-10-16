@@ -44,6 +44,6 @@ setup(
         'Issues': 'https://github.com/ujeebu/ujeebu-scrapy/issues',
         'Pricing': 'https://ujeebu.com/pricing',
     },
-    version='0.2.2',
+    version='0.2.3',
     zip_safe=False,
 )
